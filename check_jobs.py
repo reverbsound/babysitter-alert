@@ -5,7 +5,6 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
-from math import radians, sin, cos, sqrt, atan2
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
 URL = "https://www.findababysitter.com.au/browse/jobs/vic/clarinda"
@@ -29,46 +28,64 @@ def save_seen(seen):
 
 def fetch_jobs():
     headers = {"User-Agent": "Mozilla/5.0"}
-    resp = requests.get(URL, headers=headers, timeout=15)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-
     jobs = []
-    cards = soup.find_all("div", class_="carer-new-block-main")
+    page = 1
 
-    for card in cards:
-        # Title + link
-        link_tag = card.find("a", href=True)
-        title_tag = card.find("h5", class_="carer-new-block__name")
-        title = title_tag.get_text(strip=True) if title_tag else "Unknown"
-        link = link_tag["href"] if link_tag else ""
-        if link and not link.startswith("http"):
-            link = "https://www.findababysitter.com.au" + link
-        job_id = link.rstrip("/").split("/")[-1]
+    while True:
+        paged_url = URL if page == 1 else f"{URL}?page={page}"
+        resp = requests.get(paged_url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        cards = soup.find_all("div", class_="carer-new-block-main")
 
-        # Suburb + distance (e.g. "Bentleigh East, VIC | 5 km")
-        suburb_tag = card.find("p", class_="carer-new-block__suburb-age")
-        suburb_text = suburb_tag.get_text(strip=True) if suburb_tag else ""
+        if not cards:
+            break  # no more pages
 
-        # Extract distance in km from the text
-        dist_match = re.search(r'\|\s*([\d.]+)\s*km', suburb_text)
-        distance_km = float(dist_match.group(1)) if dist_match else None
+        all_beyond_range = True  # track if every card on this page is too far
 
-        # Clean suburb name (strip the "| X km" part)
-        suburb = re.sub(r'\|.*', '', suburb_text).strip()
+        for card in cards:
+            # Title + link
+            link_tag = card.find("a", href=True)
+            title_tag = card.find("h5", class_="carer-new-block__name")
+            title = title_tag.get_text(strip=True) if title_tag else "Unknown"
+            link = link_tag["href"] if link_tag else ""
+            if link and not link.startswith("http"):
+                link = "https://www.findababysitter.com.au" + link
+            job_id = link.rstrip("/").split("/")[-1]
 
-        # Posted info
-        posted_tag = card.find("p", class_="job-info-block__post")
-        posted = posted_tag.get_text(strip=True) if posted_tag else ""
+            # Suburb + distance (e.g. "Bentleigh East, VIC | 5 km")
+            suburb_tag = card.find("p", class_="carer-new-block__suburb-age")
+            suburb_text = suburb_tag.get_text(strip=True) if suburb_tag else ""
 
-        jobs.append({
-            "id":          job_id,
-            "title":       title,
-            "link":        link,
-            "suburb":      suburb,
-            "distance_km": distance_km,
-            "posted":      posted,
-        })
+            # Extract distance in km from the text
+            dist_match = re.search(r'\|\s*([\d.]+)\s*km', suburb_text)
+            distance_km = float(dist_match.group(1)) if dist_match else None
+
+            # Clean suburb name (strip the "| X km" part)
+            suburb = re.sub(r'\|.*', '', suburb_text).strip()
+
+            # Posted info
+            posted_tag = card.find("p", class_="job-info-block__post")
+            posted = posted_tag.get_text(strip=True) if posted_tag else ""
+
+            if distance_km is None or distance_km <= MAX_DISTANCE_KM:
+                all_beyond_range = False
+
+            jobs.append({
+                "id":          job_id,
+                "title":       title,
+                "link":        link,
+                "suburb":      suburb,
+                "distance_km": distance_km,
+                "posted":      posted,
+            })
+
+        # Since results are sorted by distance, once an entire page is beyond
+        # the limit we know all subsequent pages will be too — stop early
+        if MAX_DISTANCE_KM is not None and all_beyond_range:
+            break
+
+        page += 1
 
     return jobs
 
