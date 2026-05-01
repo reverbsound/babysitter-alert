@@ -1,8 +1,8 @@
 name: Check Babysitter Jobs
 
 on:
-  schedule:
-    - cron: '0 * * * *'   # runs every hour on the hour
+  repository_dispatch:
+    types: [run-check]
   workflow_dispatch:       # lets you trigger it manually too
 
 permissions:
