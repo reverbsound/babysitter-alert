@@ -5,11 +5,16 @@ on:
     - cron: '0 * * * *'   # runs every hour on the hour
   workflow_dispatch:       # lets you trigger it manually too
 
+permissions:
+  contents: write          # ← this is the fix
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
         with:
