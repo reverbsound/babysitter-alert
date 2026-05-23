@@ -109,7 +109,7 @@ def send_email(new_jobs):
     body = "New babysitting jobs near Clarinda:\n\n"
     for j in new_jobs:
         dist = f" (~{j['distance_km']:.0f} km away)" if j["distance_km"] is not None else ""
-        about_line = f"  {j['about']}\n" if j.get("about") else ""
+        about_line = f"\n{j['about']}\n" if j.get("about") else ""
         body += (
             f"• {j['title']}{dist}\n"
             f"  {j['suburb']}\n"
