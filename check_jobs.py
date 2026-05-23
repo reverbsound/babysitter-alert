@@ -47,7 +47,7 @@ def fetch_jobs():
             # Title + link
             link_tag = card.find("a", href=True)
             title_tag = card.find("h5", class_="carer-new-block__name")
-            title = title_tag.get_text(strip=True) if title_tag else "Unknown"
+            title = re.sub(r'^NEW!', '', title_tag.get_text(strip=True)) if title_tag else "Unknown"
             link = link_tag["href"] if link_tag else ""
             if link and not link.startswith("http"):
                 link = "https://www.findababysitter.com.au" + link
@@ -66,7 +66,15 @@ def fetch_jobs():
 
             # Posted info
             posted_tag = card.find("p", class_="job-info-block__post")
-            posted = posted_tag.get_text(strip=True) if posted_tag else ""
+            posted = " ".join(posted_tag.get_text(separator=" ", strip=True).split()) if posted_tag else ""
+
+            # About section
+            about_div = card.find("div", class_="carer-new-block-about")
+            if about_div:
+                about_p = about_div.find("p")
+                about = about_p.get_text(separator=" ", strip=True) if about_p else ""
+            else:
+                about = ""
 
             if distance_km is None or distance_km <= MAX_DISTANCE_KM:
                 all_beyond_range = False
@@ -78,6 +86,7 @@ def fetch_jobs():
                 "suburb":      suburb,
                 "distance_km": distance_km,
                 "posted":      posted,
+                "about":       about,
             })
 
         # Since results are sorted by distance, once an entire page is beyond
@@ -100,7 +109,14 @@ def send_email(new_jobs):
     body = "New babysitting jobs near Clarinda:\n\n"
     for j in new_jobs:
         dist = f" (~{j['distance_km']:.0f} km away)" if j["distance_km"] is not None else ""
-        body += f"• {j['title']}{dist}\n  {j['suburb']}\n  {j['posted']}\n  {j['link']}\n\n"
+        about_line = f"  {j['about']}\n" if j.get("about") else ""
+        body += (
+            f"• {j['title']}{dist}\n"
+            f"  {j['suburb']}\n"
+            f"  {j['posted']}\n"
+            f"{about_line}"
+            f"  {j['link']}\n\n"
+        )
 
     msg = MIMEText(body)
     msg["Subject"] = f"🍼 {len(new_jobs)} new babysitting job(s) near Clarinda"
